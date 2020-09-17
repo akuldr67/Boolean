@@ -27,7 +27,7 @@ func createBoolean(c *gin.Context) {
 	err := c.ShouldBindJSON(&newBool)
 
 	// Jugaad for pre create hook!!
-	uuid, err := uuid.NewV4()
+	uuid, _ := uuid.NewV4()
 	newBool = models.Boolean{ID: uuid, Key: newBool.Key, Value: newBool.Value}
 
 	fmt.Println(newBool)
