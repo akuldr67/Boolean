@@ -14,6 +14,8 @@ func main() {
 
 	err := config.ConnectDb()
 
+	// config.DB.AutoMigrate(&models.Boolean{})
+
 	if err != nil {
 		fmt.Println("Unable to connect to database")
 		os.Exit(1)
