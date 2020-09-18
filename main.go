@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/akuldr67/Boolean/control"
+	"github.com/akuldr67/Boolean/models"
 
 	"github.com/akuldr67/Boolean/config"
 )
@@ -14,7 +15,7 @@ func main() {
 
 	err := config.ConnectDb()
 
-	// config.DB.AutoMigrate(&models.Boolean{})
+	config.DB.AutoMigrate(&models.Boolean{})
 
 	if err != nil {
 		fmt.Println("Unable to connect to database")

@@ -11,11 +11,10 @@ func SetupRoutes() *gin.Engine {
 	{
 		group1.GET("", getAllBooleans)
 		group1.POST("", createBoolean)
+		group1.GET(":id", getBooleanByID)
+		group1.PATCH(":id", updateBoolean)
+		group1.DELETE(":id", deleteBoolean)
 	}
-
-	// r.GET("/", func(c *gin.Context) {
-	// 	c.JSON(http.StatusOK, gin.H{"data": "hello world"})
-	// })
 
 	return r
 }
