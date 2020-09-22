@@ -3,9 +3,10 @@ package config
 import (
 	"fmt"
 
-	// "github.com/jinzhu/gorm"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
+	"github.com/jinzhu/gorm"
+	// "gorm.io/gorm"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 var DB *gorm.DB
@@ -42,9 +43,12 @@ func dbURL(dbConfig *dbConfig) string {
 
 func ConnectDb() error {
 	var err error
-	// db, err = gorm.Open("mysql", dbURL(buildDBConfig()))
-	DB, err = gorm.Open(mysql.Open(dbURL(buildDBConfig())), &gorm.Config{})
+
+	DB, err = gorm.Open("mysql", dbURL(buildDBConfig()))
+	// DB, err = gorm.Open(mysql.Open(dbURL(buildDBConfig())), &gorm.Config{})
+
 	if err != nil {
+		fmt.Println("here", err)
 		return err
 	}
 	fmt.Println("Connected to database...")

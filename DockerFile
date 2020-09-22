@@ -1,0 +1,15 @@
+FROM golang:1.15.2-alpine3.12
+
+RUN apk update && apk add --no-cache git
+
+COPY . /Boolean
+
+WORKDIR /Boolean
+
+RUN go mod download
+
+EXPOSE 8080
+
+RUN go build .
+
+CMD ["./Boolean"]

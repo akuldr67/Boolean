@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/akuldr67/Boolean/config"
 	"github.com/akuldr67/Boolean/models"
 	uuid "github.com/satori/go.uuid"
 
@@ -14,7 +13,8 @@ import (
 func getAllBooleans(c *gin.Context) {
 	var bools []models.Boolean
 
-	err := config.DB.Find(&bools).Error
+	// err := config.DB.Find(&bools).Error
+	err := getAllBooleansHelper(&bools)
 	if err != nil {
 		c.AbortWithStatus(http.StatusNotFound)
 	} else {
@@ -33,19 +33,13 @@ func createBoolean(c *gin.Context) {
 	newBool.ID, _ = uuid.NewV4()
 	// newBool = models.Boolean{ID: uuid, Key: newBool.Key, Value: newBool.Value}
 
-	err = config.DB.Create(&newBool).Error
+	// err = config.DB.Create(&newBool).Error
+	err = createBooleanHelper(&newBool)
 	if err != nil {
 		c.AbortWithStatus(http.StatusNotFound)
 	} else {
 		c.JSON(http.StatusOK, newBool)
 	}
-}
-
-func getBooleanByIDHelper(boolean *models.Boolean, id string) error {
-	if err := config.DB.Where("id = ?", id).First(boolean).Error; err != nil {
-		return err
-	}
-	return nil
 }
 
 func getBooleanByID(c *gin.Context) {
@@ -75,14 +69,18 @@ func updateBoolean(c *gin.Context) {
 	// config.DB.Save(&boolean)
 
 	var input models.Boolean
-	err2 := c.ShouldBindJSON(&input)
-	if err2 != nil {
+	err = c.ShouldBindJSON(&input)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request"})
 		return
 	}
-	config.DB.Model(&boolean).Updates(input)
-
-	c.JSON(http.StatusOK, boolean)
+	// config.DB.Model(&boolean).Updates(input)
+	err = updateBooleanHelper(&boolean, input)
+	if err != nil {
+		c.AbortWithStatus(http.StatusNotFound)
+	} else {
+		c.JSON(http.StatusOK, boolean)
+	}
 }
 
 func deleteBoolean(c *gin.Context) {
@@ -95,8 +93,13 @@ func deleteBoolean(c *gin.Context) {
 		return
 	}
 
-	config.DB.Delete(&boolean)
+	// config.DB.Delete(&boolean)
+	err = deleteBooleanHelper(&boolean)
 
 	// c.JSON(http.StatusOK, gin.H{"id" + id: "deleted"})
-	c.Writer.WriteHeader(204)
+	if err != nil {
+		c.AbortWithStatus(http.StatusNotFound)
+	} else {
+		c.Writer.WriteHeader(204)
+	}
 }
