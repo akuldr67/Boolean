@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/jinzhu/gorm"
+	"github.com/joho/godotenv"
+
 	// "gorm.io/gorm"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -22,22 +24,16 @@ type dbConfig struct {
 
 func buildDBConfig() *dbConfig {
 	_, d := os.LookupEnv("DOCKER")
-	if d {
-		dbConfig := dbConfig{
-			Host:     "host.docker.internal",
-			Port:     3306,
-			User:     os.Getenv("DB_USER"),
-			Password: os.Getenv("DB_PASS"),
-			DBName:   os.Getenv("DB_NAME"),
-		}
-		return &dbConfig
-	}
+	godotenv.Load(".env")
 	dbConfig := dbConfig{
 		Host:     "localhost",
 		Port:     3306,
-		User:     "boolean",
-		Password: "booleanPw",
-		DBName:   "boolean",
+		User:     os.Getenv("DB_USER"),
+		Password: os.Getenv("DB_PASS"),
+		DBName:   os.Getenv("DB_NAME"),
+	}
+	if d {
+		dbConfig.Host = "host.docker.internal"
 	}
 	return &dbConfig
 

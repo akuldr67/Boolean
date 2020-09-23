@@ -81,19 +81,9 @@ func TestGetAllBooleansHelper(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"id", "key", "value"})
 
-	expected := `[`
 	for _, boolean := range testBooleans {
 		rows = rows.AddRow(boolean.ID, boolean.Key, boolean.Value)
-		expected = expected + `{"id":"` + boolean.ID.String() + `","key":"` + boolean.Key + `","value":`
-		if *boolean.Value == true {
-			expected += `true`
-		} else {
-			expected += `false`
-		}
-		expected += `},`
 	}
-	expected = expected[:len(expected)-1]
-	expected += `]`
 
 	mock.ExpectQuery("SELECT * FROM `booleans`").WillReturnRows(rows)
 
