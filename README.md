@@ -41,7 +41,7 @@ docker build -t boolean .
 
 - Run (change variable values accordingly)
 ```
-docker run -p 8080:8080 -e DOCKER=true -e DB_USER='boolean' -e DB_PASS='booleanPw' -e DB_NAME='boolean' --name=boolean boolean
+docker run -p 8080:8080 -e DOCKER=true --name=boolean boolean
 ```
 
 ### Without Docker
