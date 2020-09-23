@@ -1,15 +1,28 @@
-FROM golang:1.15.2-alpine3.12
+# FROM golang:1.15.2-alpine3.12
+FROM golang:alpine as builder
+
+LABEL maintainer="Akul Gupta <akul.gupta@razorpay.com>"
 
 RUN apk update && apk add --no-cache git
 
-COPY . /Boolean
-
 WORKDIR /Boolean
+
+COPY . .
 
 RUN go mod download
 
+# RUN go build .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o Boolean .
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /root/
+
+COPY --from=builder /Boolean/Boolean .
+# COPY --from=builder /Boolean/.env . 
+
 EXPOSE 8080
 
-RUN go build .
 
 CMD ["./Boolean"]

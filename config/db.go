@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/jinzhu/gorm"
 	// "gorm.io/gorm"
@@ -20,6 +21,17 @@ type dbConfig struct {
 }
 
 func buildDBConfig() *dbConfig {
+	_, d := os.LookupEnv("DOCKER")
+	if d {
+		dbConfig := dbConfig{
+			Host:     "host.docker.internal",
+			Port:     3306,
+			User:     os.Getenv("DB_USER"),
+			Password: os.Getenv("DB_PASS"),
+			DBName:   os.Getenv("DB_NAME"),
+		}
+		return &dbConfig
+	}
 	dbConfig := dbConfig{
 		Host:     "localhost",
 		Port:     3306,
@@ -28,6 +40,7 @@ func buildDBConfig() *dbConfig {
 		DBName:   "boolean",
 	}
 	return &dbConfig
+
 }
 
 func dbURL(dbConfig *dbConfig) string {
