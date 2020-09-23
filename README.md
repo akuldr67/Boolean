@@ -31,9 +31,23 @@ GRANT ALL PRIVILEGES ON boolean.* To 'boolean'@'localhost' IDENTIFIED BY 'boolea
 ### Env
 If you are running project `without docker`, and have given different user name/password or database name in mysql configuration above,  than change the `.env` file variables.
 
-## Installation
-### With Docker
+## Installing and Running Service
+There are 3 possible ways to install and run the service:
 
+
+### With Docker (downloading image - Suggested way)
+- Download the image from dockerhub
+```
+docker pull akuldr67/boolean
+```
+- Run the image (If the image is not downloaded previously, it will first download and then run the image)
+```
+docker run -p 8080:8080 -e DOCKER=true --name=boolean akuldr67/boolean
+```
+
+
+### With Docker (Without downloading image from dockerhub)
+- Clone this repository and `cd` to `Boolean` directory where you cloned it.
 - Build
 ```
 docker build -t boolean .
@@ -43,6 +57,7 @@ docker build -t boolean .
 ```
 docker run -p 8080:8080 -e DOCKER=true --name=boolean boolean
 ```
+
 
 ### Without Docker
  - Clone this repository and `cd` to the `Boolean` directory where you cloned it.
