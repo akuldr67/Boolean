@@ -41,7 +41,7 @@ docker build -t boolean .
 
 - Run (change variable values accordingly)
 ```
-docker run -p 8080:8080 -e DOCKER=true -e DB_USER='boolean' -e DB_PASS='booleanPw' -e DB_NAME='boolean' boolean
+docker run -p 8080:8080 -e DOCKER=true -e DB_USER='boolean' -e DB_PASS='booleanPw' -e DB_NAME='boolean' --name=boolean boolean
 ```
 
 ### Without Docker
@@ -69,20 +69,20 @@ http://localhost:8080
 ### Get All Booleans
 - Use `GET /` to get all booleans
 - Response: 
-```
-[
-    {
-        "id": "1adc9cfd-ff45-428b-b4eb-96fced361ac3",
-        "key": "a boolean",
-        "value": false
-    },
-    {
-        "id": "27259a61-189c-48b0-9db6-d3fe6f4078a6",
-        "key": "name",
-        "value": false
-    }
-]
-```
+  ```
+  [
+      {
+          "id": "1adc9cfd-ff45-428b-b4eb-96fced361ac3",
+          "key": "a boolean",
+          "value": false
+      },
+      {
+          "id": "27259a61-189c-48b0-9db6-d3fe6f4078a6",
+          "key": "name",
+          "value": false
+      }
+  ]
+  ```
 
 ### Create a Boolean
  - Use `POST /` to create a boolean
@@ -139,3 +139,10 @@ http://localhost:8080
   ```
   HTTP 204 No Content
   ```
+
+## Testing
+To run test functions, run following commands from you `Boolean` folder
+```
+cd control
+go test
+```
