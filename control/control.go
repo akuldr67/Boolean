@@ -1,7 +1,6 @@
 package control
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/akuldr67/Boolean/models"
@@ -10,96 +9,115 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func getAllBooleans(c *gin.Context) {
-	var bools []models.Boolean
+type Controller struct {
+	repo RepoInterface
+}
 
-	// err := config.DB.Find(&bools).Error
-	err := getAllBooleansHelper(&bools)
-	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
-	} else {
-		c.JSON(http.StatusOK, bools)
+type ControllerInterface interface {
+	GetAllBooleans(ctx *gin.Context)
+	CreateBoolean(ctx *gin.Context)
+	GetBooleanByID(ctx *gin.Context)
+	UpdateBoolean(ctx *gin.Context)
+	DeleteBoolean(ctx *gin.Context)
+}
+
+func NewController(repo RepoInterface) Controller {
+	return Controller{
+		repo: repo,
 	}
 }
 
-func createBoolean(c *gin.Context) {
-	var newBool models.Boolean
-	err := c.ShouldBindJSON(&newBool)
+func (c Controller) GetAllBooleans(ctx *gin.Context) {
+	var bools []models.Boolean
+
+	// err := config.DB.Find(&bools).Error
+	err := c.repo.GetAllBooleansHelper(&bools)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request"})
+		ctx.AbortWithStatus(http.StatusNotFound)
+	} else {
+		ctx.JSON(http.StatusOK, bools)
+	}
+}
+
+func (c Controller) CreateBoolean(ctx *gin.Context) {
+	var newBool models.Boolean
+	err := ctx.ShouldBindJSON(&newBool)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request"})
 		return
 	}
 
 	newBool.ID, _ = uuid.NewV4()
 	// newBool = models.Boolean{ID: uuid, Key: newBool.Key, Value: newBool.Value}
 
-	// err = config.DB.Create(&newBool).Error
-	err = createBooleanHelper(&newBool)
+	// err = c.repo.DB.Create(&newBool).Error
+	err = c.repo.CreateBooleanHelper(&newBool)
 	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
+		ctx.AbortWithStatus(http.StatusNotFound)
 	} else {
-		c.JSON(http.StatusOK, newBool)
+		ctx.JSON(http.StatusOK, newBool)
 	}
 }
 
-func getBooleanByID(c *gin.Context) {
+func (c Controller) GetBooleanByID(ctx *gin.Context) {
 	var boolean models.Boolean
-	fmt.Println(c.Params)
-	id := c.Params.ByName("id")
 
-	err := getBooleanByIDHelper(&boolean, id)
+	id := ctx.Params.ByName("id")
+
+	err := c.repo.GetBooleanByIDHelper(&boolean, id)
 	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
+		ctx.AbortWithStatus(http.StatusNotFound)
 	} else {
-		c.JSON(http.StatusOK, boolean)
+		ctx.JSON(http.StatusOK, boolean)
 	}
 }
 
-func updateBoolean(c *gin.Context) {
+func (c Controller) UpdateBoolean(ctx *gin.Context) {
 	var boolean models.Boolean
-	id := c.Params.ByName("id")
+	id := ctx.Params.ByName("id")
 
-	err := getBooleanByIDHelper(&boolean, id)
+	err := c.repo.GetBooleanByIDHelper(&boolean, id)
 	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
+		ctx.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 
-	// c.BindJSON(&boolean)
-	// config.DB.Save(&boolean)
+	// ctx.BindJSON(&boolean)
+	// c.repo.DB.Save(&boolean)
 
 	var input models.Boolean
-	err = c.ShouldBindJSON(&input)
+	err = ctx.ShouldBindJSON(&input)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request"})
 		return
 	}
-	// config.DB.Model(&boolean).Updates(input)
-	err = updateBooleanHelper(&boolean, input)
+
+	// crepo.DB.Model(&boolean).Updates(input)
+	err = c.repo.UpdateBooleanHelper(&boolean, input)
 	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
+		ctx.AbortWithStatus(http.StatusNotFound)
 	} else {
-		c.JSON(http.StatusOK, boolean)
+		ctx.JSON(http.StatusOK, boolean)
 	}
 }
 
-func deleteBoolean(c *gin.Context) {
+func (c Controller) DeleteBoolean(ctx *gin.Context) {
 	var boolean models.Boolean
-	id := c.Params.ByName("id")
+	id := ctx.Params.ByName("id")
 
-	err := getBooleanByIDHelper(&boolean, id)
+	err := c.repo.GetBooleanByIDHelper(&boolean, id)
 	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
+		ctx.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 
-	// config.DB.Delete(&boolean)
-	err = deleteBooleanHelper(&boolean)
+	// c.repo.DB.Delete(&boolean)
+	err = c.repo.DeleteBooleanHelper(&boolean)
 
-	// c.JSON(http.StatusOK, gin.H{"id" + id: "deleted"})
+	// ctx.JSON(http.StatusOK, gin.H{"id" + id: "deleted"})
 	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
+		ctx.AbortWithStatus(http.StatusNotFound)
 	} else {
-		c.Writer.WriteHeader(204)
+		ctx.Writer.WriteHeader(204)
 	}
 }

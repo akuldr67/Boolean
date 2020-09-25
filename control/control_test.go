@@ -8,14 +8,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/akuldr67/Boolean/models"
-
+	mock_control "github.com/akuldr67/Boolean/mocks"
 	"github.com/gin-gonic/gin"
+
+	"github.com/akuldr67/Boolean/models"
+	"github.com/golang/mock/gomock"
+
 	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/akuldr67/Boolean/config"
 
 	// "gorm.io/driver/mysql"
 	// "gorm.io/gorm"
@@ -23,28 +25,6 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 )
-
-// func TestRoutes(t *testing.T) {
-// 	// ts := httptest.NewServer(SetupRoutes())
-// 	// defer ts.Close()
-
-// 	// _, err := http.Get(fmt.Sprintf("%s/", ts.URL))
-// 	// if err != nil {
-// 	// 	t.Fatalf("Expected no error, got %v", err)
-// 	// }
-
-// 	router := SetupRoutes()
-// 	req, _ := http.NewRequest("GET", "/", nil)
-// 	w := httptest.NewRecorder()
-// 	router.ServeHTTP(w, req)
-
-// 	assert.Equal(t, http.StatusOK, w.Code)
-
-// 	// if resp.StatusCode != 200 {
-// 	// 	t.Fatalf("Expected status code 200, got %v", resp.StatusCode)
-// 	// }
-
-// }
 
 func getTestBooleans() []models.Boolean {
 	id1, _ := uuid.NewV4()
@@ -61,22 +41,18 @@ func getTestBooleans() []models.Boolean {
 	}
 }
 
-func initiateTest(t *testing.T) sqlmock.Sqlmock {
+func initiateTest(t *testing.T) (sqlmock.Sqlmock, *gorm.DB) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
-
 	assert.Nil(t, err, "an error was not expected when opening a stub database connection")
 
 	// config.DB, err = gorm.Open(mysql.Open("db"), &gorm.Config{})
-	config.DB, err = gorm.Open("mysql", db)
-
-	assert.Nil(t, err, "error while opening test mysql database")
-
-	return mock
+	DB, err2 := gorm.Open("mysql", db)
+	assert.Nil(t, err2, "error while opening test mysql database")
+	return mock, DB
 }
 
 func TestGetAllBooleansHelper(t *testing.T) {
-	mock := initiateTest(t)
-
+	mock, db := initiateTest(t)
 	testBooleans := getTestBooleans()
 
 	rows := sqlmock.NewRows([]string{"id", "key", "value"})
@@ -88,54 +64,54 @@ func TestGetAllBooleansHelper(t *testing.T) {
 	mock.ExpectQuery("SELECT * FROM `booleans`").WillReturnRows(rows)
 
 	var allBooleans []models.Boolean
-	err := getAllBooleansHelper(&allBooleans)
+	r := NewRepo(db)
+	err := r.GetAllBooleansHelper(&allBooleans)
 	assert.Nil(t, err)
 
 	assert.Equal(t, allBooleans, testBooleans)
+
+	err = mock.ExpectationsWereMet()
+	assert.Nil(t, err)
+	// if err != nil {
+	// 	t.Errorf("expectations not matched %s", err)
+	// }
 }
 
-func TestGetAllBooleans(t *testing.T) {
-	mock := initiateTest(t)
+func TestGetAllBooleansStatusOK(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	var b []models.Boolean
+	var err error
+	err = nil
+	mockRepo.EXPECT().GetAllBooleansHelper(&b).Return(err)
 
-	testBooleans := getTestBooleans()
-
-	rows := sqlmock.NewRows([]string{"id", "key", "value"})
-
-	expected := `[`
-	for _, boolean := range testBooleans {
-		rows = rows.AddRow(boolean.ID, boolean.Key, boolean.Value)
-		expected = expected + `{"id":"` + boolean.ID.String() + `","key":"` + boolean.Key + `","value":`
-		if *boolean.Value == true {
-			expected += `true`
-		} else {
-			expected += `false`
-		}
-		expected += `},`
-	}
-	expected = expected[:len(expected)-1]
-	expected += `]`
-
-	mock.ExpectQuery("SELECT * FROM `booleans`").WillReturnRows(rows)
-
+	controller := NewController(mockRepo)
 	tr := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(tr)
-	getAllBooleans(c)
+	controller.GetAllBooleans(c)
 
-	// assert.Equal(t, *tr.Body, *rows)
-
-	assert.Equal(t, tr.Body.String(), expected)
-
-	assert.Equal(t, tr.Code, http.StatusOK)
+	// assert.Equal(t, "null", tr.Body.String())
+	assert.Equal(t, http.StatusOK, tr.Code)
 }
 
-// func TestGetAllBooleans(t *testing.T) {
-// 	testBooleans := getTestBooleans()
+func TestGetAllBooleansStatusNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	var b []models.Boolean
+	var err error
+	err = fmt.Errorf("unable to find database")
+	mockRepo.EXPECT().GetAllBooleansHelper(&b).Return(err)
 
-// }
+	controller := NewController(mockRepo)
+	tr := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(tr)
+	controller.GetAllBooleans(c)
+
+	assert.Equal(t, http.StatusNotFound, tr.Code)
+}
 
 func TestCreateBooleansHelper(t *testing.T) {
-	mock := initiateTest(t)
-
+	mock, db := initiateTest(t)
 	testBooleans := getTestBooleans()
 
 	const sqlInsert = "INSERT INTO `booleans` (`id`,`key`,`value`) VALUES (?,?,?)"
@@ -147,81 +123,96 @@ func TestCreateBooleansHelper(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectCommit()
 
-		err := createBooleanHelper(&boolean)
+		r := NewRepo(db)
+		err := r.CreateBooleanHelper(&boolean)
+		assert.Nil(t, err)
+		err = mock.ExpectationsWereMet()
 		assert.Nil(t, err)
 	}
 }
 
-func TestCreateBooleans(t *testing.T) {
-	_ = initiateTest(t)
+func TestCreateBooleansStatusOK(t *testing.T) {
+	testBooleans := getTestBooleans()
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
 	var err error
 
-	testBooleans := getTestBooleans()
-
 	for _, boolean := range testBooleans {
+		err = nil
+		mockRepo.EXPECT().CreateBooleanHelper(gomock.Any()).Return(err)
 		jsonRequest, err2 := json.Marshal(models.Boolean{
 			Key:   boolean.Key,
 			Value: boolean.Value,
 		})
 		assert.Nil(t, err2)
 
+		controller := NewController(mockRepo)
 		tr := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(tr)
 
 		c.Request, err = http.NewRequest("POST", "/", bytes.NewBuffer(jsonRequest))
-		if err != nil {
-			fmt.Println("******** here *********")
-			t.Fatal(err)
-		}
+		assert.Nil(t, err)
+
 		c.Request.Header.Set("Content-Type", "application/json")
-		createBoolean(c)
-		// fmt.Println(tr.Code)
+		controller.CreateBoolean(c)
+		assert.Equal(t, http.StatusOK, tr.Code)
 	}
 }
 
-// func TestCreateBooleans(t *testing.T) {
-// mock := initiateTest(t)
+func TestCreateBooleansBadRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	var err error
+	err = nil
 
-// 	testBooleans := getTestBooleans()
+	mockRepo.EXPECT().CreateBooleanHelper(gomock.Any()).Return(err)
+	jsonRequest, err2 := json.Marshal(models.Boolean{
+		Key: "key without value",
+	})
+	assert.Nil(t, err2)
 
-// 	const sqlInsert = "INSERT INTO `booleans` (`id`,`key`,`value`) VALUES (?,?,?)"
+	controller := NewController(mockRepo)
+	tr := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(tr)
 
-// 	for _, boolean := range testBooleans {
-// 		mock.ExpectBegin()
-// 		mock.ExpectExec(sqlInsert).
-// 			WithArgs(boolean.ID.String(), boolean.Key, boolean.Value).
-// 			WillReturnResult(sqlmock.NewResult(0, 0))
-// 		mock.ExpectCommit()
+	c.Request, err = http.NewRequest("POST", "/", bytes.NewBuffer(jsonRequest))
+	assert.Nil(t, err)
 
-// 		addString := `{"key":"` + boolean.Key + `","value":`
-// 		if *boolean.Value == true {
-// 			addString += `true`
-// 		} else {
-// 			addString += `false`
-// 		}
-// 		addString += `}`
-// 		// var jsonStr = []byte(addString)
+	c.Request.Header.Set("Content-Type", "application/json")
+	controller.CreateBoolean(c)
+	assert.Equal(t, http.StatusBadRequest, tr.Code)
+}
 
-// 		jsonRequest, err2 := json.Marshal(models.Boolean{
-// 			Key:   boolean.Key,
-// 			Value: boolean.Value,
-// 		})
-// 		assert.Nil(t, err2)
+func TestCreateBooleansStatusNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	testBooleans := getTestBooleans()
+	var err error
 
-// 		tr := httptest.NewRecorder()
-// 		c, _ := gin.CreateTestContext(tr)
+	for _, boolean := range testBooleans {
+		err = fmt.Errorf("unable to find database")
+		mockRepo.EXPECT().CreateBooleanHelper(gomock.Any()).Return(err)
+		jsonRequest, err2 := json.Marshal(models.Boolean{
+			Key:   boolean.Key,
+			Value: boolean.Value,
+		})
+		assert.Nil(t, err2)
 
-// 		c.Request, err = http.NewRequest("POST", "/", bytes.NewBuffer(jsonRequest))
-// 		if err != nil {
-// 			t.Fatal(err)
-// 		}
-// 		c.Request.Header.Set("Content-Type", "application/json")
-// 		createBoolean(c)
-// 	}
-// }
+		controller := NewController(mockRepo)
+		tr := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(tr)
+
+		c.Request, err = http.NewRequest("POST", "/", bytes.NewBuffer(jsonRequest))
+		assert.Nil(t, err)
+
+		c.Request.Header.Set("Content-Type", "application/json")
+		controller.CreateBoolean(c)
+		assert.Equal(t, http.StatusNotFound, tr.Code)
+	}
+}
 
 func TestGetBooleanByIDHelper(t *testing.T) {
-	mock := initiateTest(t)
+	mock, db := initiateTest(t)
 
 	testBooleans := getTestBooleans()
 
@@ -235,48 +226,49 @@ func TestGetBooleanByIDHelper(t *testing.T) {
 			WillReturnRows(rows)
 
 		var newBoolean models.Boolean
-		err := getBooleanByIDHelper(&newBoolean, boolean.ID.String())
+		r := NewRepo(db)
+		err := r.GetBooleanByIDHelper(&newBoolean, boolean.ID.String())
 		assert.Nil(t, err)
 		assert.Equal(t, newBoolean.ID, boolean.ID)
 		assert.Equal(t, newBoolean.Key, boolean.Key)
 		assert.Equal(t, newBoolean.Value, boolean.Value)
+		err = mock.ExpectationsWereMet()
+		assert.Nil(t, err)
 	}
 }
 
-func TestGetBooleanByID(t *testing.T) {
-	mock := initiateTest(t)
+func TestGetBooleanByIDStatusOK(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	var err error
+	err = nil
+	mockRepo.EXPECT().GetBooleanByIDHelper(gomock.Any(), gomock.Any()).Return(err)
 
-	testBooleans := getTestBooleans()
+	controller := NewController(mockRepo)
+	tr := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(tr)
+	controller.GetBooleanByID(c)
 
-	for _, boolean := range testBooleans {
-		rows := sqlmock.
-			NewRows([]string{"id", "key", "value"}).
-			AddRow(boolean.ID, boolean.Key, boolean.Value)
+	assert.Equal(t, http.StatusOK, tr.Code)
+}
 
-		mock.ExpectQuery("SELECT * FROM `booleans` WHERE (id = ?) ORDER BY `booleans`.`id` ASC LIMIT 1").
-			WithArgs(boolean.ID).
-			WillReturnRows(rows)
+func TestGetBooleanByIDStatusNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	var err error
+	err = fmt.Errorf("unable to find database")
+	mockRepo.EXPECT().GetBooleanByIDHelper(gomock.Any(), gomock.Any()).Return(err)
 
-		tr := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(tr)
-		c.Request, _ = http.NewRequest(http.MethodGet, "", nil)
-		c.Params = gin.Params{
-			{Key: "id", Value: boolean.ID.String()},
-		}
+	controller := NewController(mockRepo)
+	tr := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(tr)
+	controller.GetBooleanByID(c)
 
-		getBooleanByID(c)
-
-		assert.Equal(t, tr.Code, http.StatusOK)
-
-		var b models.Boolean
-		err := json.Unmarshal(tr.Body.Bytes(), &b)
-		assert.Nil(t, err)
-		assert.Equal(t, boolean, b)
-	}
+	assert.Equal(t, http.StatusNotFound, tr.Code)
 }
 
 func TestUpdateBooleanHelper(t *testing.T) {
-	mock := initiateTest(t)
+	mock, db := initiateTest(t)
 
 	testBooleans := getTestBooleans()
 
@@ -296,61 +288,121 @@ func TestUpdateBooleanHelper(t *testing.T) {
 		}
 		mock.ExpectCommit()
 
-		err := updateBooleanHelper(&boolean, boolean)
+		r := NewRepo(db)
+		err := r.UpdateBooleanHelper(&boolean, boolean)
+		assert.Nil(t, err)
+		err = mock.ExpectationsWereMet()
 		assert.Nil(t, err)
 	}
 }
 
-func TestUpdateBoolean(t *testing.T) {
-	mock := initiateTest(t)
-
+func TestUpdateBooleanStatusOK(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	var err error
 	testBooleans := getTestBooleans()
 
-	// const query = "SELECT * FROM `booleans`  WHERE (id = ?) ORDER BY `booleans`.`id` ASC LIMIT 1"
-
 	for _, boolean := range testBooleans {
-		mock.ExpectBegin()
+		err = nil
+		mockRepo.EXPECT().GetBooleanByIDHelper(gomock.Any(), gomock.Any()).Return(err)
+		mockRepo.EXPECT().UpdateBooleanHelper(gomock.Any(), gomock.Any()).Return(err)
 
-		// mock.ExpectExec(query).
-		// 	WithArgs(boolean.ID).
-		// 	WillReturnResult(sqlmock.NewResult(0, 0))
-
-		var sqlUpdate string
-		if boolean.Key != "" {
-			sqlUpdate = "UPDATE `booleans` SET `id` = ?, `key` = ?, `value` = ? WHERE `booleans`.`id` = ?"
-			mock.ExpectExec(sqlUpdate).
-				WithArgs(boolean.ID, boolean.Key, boolean.Value, boolean.ID).
-				WillReturnResult(sqlmock.NewResult(1, 1))
-		} else {
-			sqlUpdate = "UPDATE `booleans` SET `id` = ?, `value` = ? WHERE `booleans`.`id` = ?"
-			mock.ExpectExec(sqlUpdate).
-				WithArgs(boolean.ID, boolean.Value, boolean.ID).
-				WillReturnResult(sqlmock.NewResult(1, 1))
-		}
-		mock.ExpectCommit()
-
-		jsonRequest, err := json.Marshal(models.Boolean{
-			Value: boolean.Value,
+		jsonRequest, err2 := json.Marshal(models.Boolean{
 			Key:   boolean.Key,
+			Value: boolean.Value,
 		})
-		assert.Nil(t, err)
+		assert.Nil(t, err2)
 
+		controller := NewController(mockRepo)
 		tr := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(tr)
-		c.Request, _ = http.NewRequest(http.MethodGet, "", bytes.NewBuffer(jsonRequest))
+
+		c.Request, err = http.NewRequest("PATCH", "/", bytes.NewBuffer(jsonRequest))
+		assert.Nil(t, err)
+
+		c.Request.Header.Set("Content-Type", "application/json")
 		c.Params = gin.Params{
 			{Key: "id", Value: boolean.ID.String()},
 		}
+		controller.UpdateBoolean(c)
 
-		updateBoolean(c)
-		// fmt.Println(tr.Code)
-		// assert.Equal(t, http.StatusOK, tr.Code)
-
+		assert.Equal(t, http.StatusOK, tr.Code)
 	}
+}
+
+func TestUpdateBooleanStatusNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	var err, errID, errDB error
+	err = nil
+	testBooleans := getTestBooleans()
+
+	for i, boolean := range testBooleans {
+		if i == 0 { //ID not found case
+			errID = fmt.Errorf("unable to find ID")
+			errDB = nil
+			mockRepo.EXPECT().GetBooleanByIDHelper(gomock.Any(), gomock.Any()).Return(errID)
+		} else { //error while updating DB case
+			errID = nil
+			errDB = fmt.Errorf("unable to find database")
+			mockRepo.EXPECT().GetBooleanByIDHelper(gomock.Any(), gomock.Any()).Return(errID)
+			mockRepo.EXPECT().UpdateBooleanHelper(gomock.Any(), gomock.Any()).Return(errDB)
+		}
+
+		jsonRequest, err2 := json.Marshal(models.Boolean{
+			Key:   boolean.Key,
+			Value: boolean.Value,
+		})
+		assert.Nil(t, err2)
+
+		controller := NewController(mockRepo)
+		tr := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(tr)
+
+		c.Request, err = http.NewRequest("PATCH", "/", bytes.NewBuffer(jsonRequest))
+		assert.Nil(t, err)
+
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{
+			{Key: "id", Value: boolean.ID.String()},
+		}
+		controller.UpdateBoolean(c)
+
+		assert.Equal(t, http.StatusNotFound, tr.Code)
+	}
+}
+
+func TestUpdateBooleanBadRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	var err error
+	err = nil
+	mockRepo.EXPECT().GetBooleanByIDHelper(gomock.Any(), gomock.Any()).Return(err)
+	mockRepo.EXPECT().UpdateBooleanHelper(gomock.Any(), gomock.Any()).Return(err)
+
+	jsonRequest, err2 := json.Marshal(models.Boolean{
+		Key: "key without value",
+	})
+	assert.Nil(t, err2)
+
+	controller := NewController(mockRepo)
+	tr := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(tr)
+	c.Request, err = http.NewRequest("PATCH", "/", bytes.NewBuffer(jsonRequest))
+	assert.Nil(t, err)
+
+	c.Request.Header.Set("Content-Type", "application/json")
+	tempID, _ := uuid.NewV4()
+	c.Params = gin.Params{
+		{Key: "id", Value: tempID.String()},
+	}
+	controller.UpdateBoolean(c)
+
+	assert.Equal(t, http.StatusBadRequest, tr.Code)
 }
 
 func TestDeleteBooleanHelper(t *testing.T) {
-	mock := initiateTest(t)
+	mock, db := initiateTest(t)
 	testBooleans := getTestBooleans()
 
 	const sqlDelete = "DELETE FROM `booleans`  WHERE `booleans`.`id` = ?"
@@ -362,35 +414,74 @@ func TestDeleteBooleanHelper(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectCommit()
 
-		err := deleteBooleanHelper(&boolean)
+		r := NewRepo(db)
+		err := r.DeleteBooleanHelper(&boolean)
+		assert.Nil(t, err)
+		err = mock.ExpectationsWereMet()
 		assert.Nil(t, err)
 	}
-
 }
 
-func TestDeleteBoolean(t *testing.T) {
-	mock := initiateTest(t)
+func TestDeleteBooleanStatusOK(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	var err error
+	err = nil
+	mockRepo.EXPECT().GetBooleanByIDHelper(gomock.Any(), gomock.Any()).Return(err)
+	mockRepo.EXPECT().DeleteBooleanHelper(gomock.Any()).Return(err)
 
-	testBooleans := getTestBooleans()
+	controller := NewController(mockRepo)
+	tr := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(tr)
+	controller.DeleteBoolean(c)
 
-	const sqlDelete = "DELETE FROM `booleans`  WHERE `booleans`.`id` = ?"
+	// fmt.Println(c.Request.Response)
+	assert.Equal(t, http.StatusOK, tr.Code)
+}
 
-	for _, boolean := range testBooleans {
-		mock.ExpectBegin()
-		mock.ExpectExec(sqlDelete).
-			WithArgs(boolean.ID).
-			WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectCommit()
-
-		tr := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(tr)
-		c.Request, _ = http.NewRequest(http.MethodGet, "", nil)
-		c.Params = gin.Params{
-			{Key: "id", Value: boolean.ID.String()},
+func TestDeleteBooleanStatusNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := mock_control.NewMockRepoInterface(ctrl)
+	var errID, errDB error
+	for i := 0; i < 2; i++ {
+		if i == 0 {
+			errID = fmt.Errorf("unable to find ID")
+			errDB = nil
+			mockRepo.EXPECT().GetBooleanByIDHelper(gomock.Any(), gomock.Any()).Return(errID)
+		} else {
+			errID = nil
+			errDB = fmt.Errorf("unable to find database")
+			mockRepo.EXPECT().GetBooleanByIDHelper(gomock.Any(), gomock.Any()).Return(errID)
+			mockRepo.EXPECT().DeleteBooleanHelper(gomock.Any()).Return(errDB)
 		}
 
-		deleteBoolean(c)
-		// fmt.Println(tr.Code)
-		// assert.Equal(t, tr.Code, http.StatusNoContent)
+		controller := NewController(mockRepo)
+		tr := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(tr)
+		controller.DeleteBoolean(c)
+
+		assert.Equal(t, http.StatusNotFound, tr.Code)
 	}
 }
+
+// func TestRoutes(t *testing.T) {
+// 	ts := httptest.NewServer(SetupRoutes())
+// 	defer ts.Close()
+
+// 	_, err := http.Get(fmt.Sprintf("%s/", ts.URL))
+// 	if err != nil {
+// 		t.Fatalf("Expected no error, got %v", err)
+// 	}
+
+// 	router := SetupRoutes()
+// 	req, _ := http.NewRequest("GET", "/", nil)
+// 	w := httptest.NewRecorder()
+// 	router.ServeHTTP(w, req)
+
+// 	assert.Equal(t, http.StatusOK, w.Code)
+
+// 	// if resp.StatusCode != 200 {
+// 	// 	t.Fatalf("Expected status code 200, got %v", resp.StatusCode)
+// 	// }
+
+// }

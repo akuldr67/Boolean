@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
 
 	"github.com/akuldr67/Boolean/control"
@@ -11,14 +11,15 @@ import (
 )
 
 func main() {
-	fmt.Println("Boolean app!")
+	// fmt.Println("Boolean app!")
+	log.Println("Boolean App!")
 
 	err := config.ConnectDb()
 
 	config.DB.AutoMigrate(&models.Boolean{})
 
 	if err != nil {
-		fmt.Println("Unable to connect to database")
+		log.Println("Unable to connect to database")
 		os.Exit(1)
 	}
 

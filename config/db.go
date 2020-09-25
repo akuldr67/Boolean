@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/jinzhu/gorm"
@@ -57,9 +58,8 @@ func ConnectDb() error {
 	// DB, err = gorm.Open(mysql.Open(dbURL(buildDBConfig())), &gorm.Config{})
 
 	if err != nil {
-		fmt.Println("here", err)
 		return err
 	}
-	fmt.Println("Connected to database...")
+	log.Println("Connected to database...")
 	return nil
 }
