@@ -435,8 +435,7 @@ func TestDeleteBooleanStatusOK(t *testing.T) {
 	c, _ := gin.CreateTestContext(tr)
 	controller.DeleteBoolean(c)
 
-	// fmt.Println(c.Request.Response)
-	assert.Equal(t, http.StatusOK, tr.Code)
+	assert.Equal(t, http.StatusNoContent, tr.Code)
 }
 
 func TestDeleteBooleanStatusNotFound(t *testing.T) {

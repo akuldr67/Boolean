@@ -30,7 +30,6 @@ func NewController(repo RepoInterface) Controller {
 func (c Controller) GetAllBooleans(ctx *gin.Context) {
 	var bools []models.Boolean
 
-	// err := config.DB.Find(&bools).Error
 	err := c.repo.GetAllBooleansHelper(&bools)
 	if err != nil {
 		ctx.AbortWithStatus(http.StatusNotFound)
@@ -48,9 +47,7 @@ func (c Controller) CreateBoolean(ctx *gin.Context) {
 	}
 
 	newBool.ID, _ = uuid.NewV4()
-	// newBool = models.Boolean{ID: uuid, Key: newBool.Key, Value: newBool.Value}
 
-	// err = c.repo.DB.Create(&newBool).Error
 	err = c.repo.CreateBooleanHelper(&newBool)
 	if err != nil {
 		ctx.AbortWithStatus(http.StatusNotFound)
@@ -92,7 +89,6 @@ func (c Controller) UpdateBoolean(ctx *gin.Context) {
 		return
 	}
 
-	// crepo.DB.Model(&boolean).Updates(input)
 	err = c.repo.UpdateBooleanHelper(&boolean, input)
 	if err != nil {
 		ctx.AbortWithStatus(http.StatusNotFound)
@@ -111,13 +107,13 @@ func (c Controller) DeleteBoolean(ctx *gin.Context) {
 		return
 	}
 
-	// c.repo.DB.Delete(&boolean)
 	err = c.repo.DeleteBooleanHelper(&boolean)
 
 	// ctx.JSON(http.StatusOK, gin.H{"id" + id: "deleted"})
 	if err != nil {
 		ctx.AbortWithStatus(http.StatusNotFound)
 	} else {
-		ctx.Writer.WriteHeader(204)
+		// ctx.Writer.WriteHeader(204)
+		ctx.AbortWithStatus(http.StatusNoContent)
 	}
 }
